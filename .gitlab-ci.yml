@@ -1,0 +1,125 @@
+image: repo.indonesian-aerospace.com/custom-base/node18-openssh
+
+stages:
+  - build_app
+  - build_image
+  - deploy
+
+cache:
+  paths:
+    - node_modules/
+    - .next/
+
+build_app_dev:
+  stage: build_app
+  before_script:
+    - npm config set registry $NPM_REPO
+    - npm config set $NPM_AUTH_CONFIG
+    - export API_HOST=$HOST_DEV
+  script:
+    - npm install
+    - npm run build
+  only:
+    - development
+
+build_image_dev:
+  stage: build_image
+  image: repo.indonesian-aerospace.com/docker:20.10.16
+  before_script:
+    - mkdir -p $HOME/.docker
+    - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
+  script: 
+    - docker build -t repo.indonesian-aerospace.com/dev-apps/dashboard-it-ui:latest .
+    - docker push repo.indonesian-aerospace.com/dev-apps/dashboard-it-ui:latest
+    - docker rmi repo.indonesian-aerospace.com/dev-apps/dashboard-it-ui:latest
+  only:
+    - development
+
+dev-deploy:
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "$SSH_KEY_DEV" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh $SSH_DEV "cd ~/project/dashboard-it && ./shutdown && ./startup"
+  only:
+    - development
+
+build_app_test:
+  stage: build_app
+  before_script:
+    - npm config set registry $NPM_REPO
+    - npm config set $NPM_AUTH_CONFIG
+    - export API_HOST=$HOST_TEST
+  script:
+    - npm install
+    - npm run build
+  only:
+    - test
+
+build_image_test:
+  stage: build_image
+  image: repo.indonesian-aerospace.com/docker:20.10.16
+  before_script:
+    - mkdir -p $HOME/.docker
+    - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
+  script: 
+    - docker build -t repo.indonesian-aerospace.com/test-apps/dashboard-it-ui:latest .
+    - docker push repo.indonesian-aerospace.com/test-apps/dashboard-it-ui:latest
+    - docker rmi repo.indonesian-aerospace.com/test-apps/dashboard-it-ui:latest
+  only:
+    - test
+
+test-deploy:
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "$SSH_KEY_TEST" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh $SSH_TEST "cd ~/project/dashboard-it && ./shutdown && ./startup"
+  only:
+    - test
+
+build_app_prod:
+  stage: build_app
+  before_script:
+    - npm config set registry $NPM_REPO
+    - npm config set $NPM_AUTH_CONFIG
+    - export API_HOST=$HOST_PROD
+  script:
+    - npm install
+    - npm run build
+  only:
+    - /-RELEASE$/
+
+build_image_prod:
+  stage: build_image
+  image: repo.indonesian-aerospace.com/docker:20.10.16
+  before_script:
+    - mkdir -p $HOME/.docker
+    - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
+  script: 
+    - docker build -t repo.indonesian-aerospace.com/prod-apps/dashboard-it-ui:latest .
+    - docker push repo.indonesian-aerospace.com/prod-apps/dashboard-it-ui:latest
+    - docker rmi repo.indonesian-aerospace.com/prod-apps/dashboard-it-ui:latest
+  only:
+    - /-RELEASE$/
+
+prod-deploy:
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "$SSH_KEY_PROD" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh $SSH_PROD "cd ~/project/dashboard-it && ./shutdown && ./startup"
+  only:
+    - /-RELEASE$/
